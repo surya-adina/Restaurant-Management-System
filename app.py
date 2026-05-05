@@ -796,7 +796,7 @@ class RestaurantApp:
     def billing_window(self):
         win = tk.Toplevel(self.root)
         win.title("Billing")
-        win.geometry("900x540")
+        win.geometry("920x600")
         win.configure(bg=BG)
 
         top = tk.Frame(
@@ -825,14 +825,27 @@ class RestaurantApp:
         detail = tk.Text(win, height=16, width=95, relief="solid", bd=1, font=("Consolas", 10))
         detail.pack(pady=5)
 
+        final_var = tk.StringVar(value="Final Total: $0.00")
+
+        final_label = tk.Label(
+            win,
+            textvariable=final_var,
+            bg=BG,
+            fg=MAROON,
+            font=("Arial", 17, "bold")
+        )
+        final_label.pack(pady=(5, 0))
+
         bottom = tk.Frame(win, bg=BG)
         bottom.pack(pady=15)
 
         tk.Label(bottom, text="Discount", bg=BG, font=("Arial", 10, "bold")).grid(row=0, column=0, padx=5)
 
-        discount = tk.Entry(bottom, width=10, relief="solid", bd=1)
+        discount = tk.Entry(bottom, width=12, relief="solid", bd=1)
         discount.insert(0, "0")
         discount.grid(row=0, column=1, padx=5, ipady=5)
+
+        tk.Label(bottom, text="Example: 10 or 10%", bg=BG, fg=GRAY, font=("Arial", 9)).grid(row=1, column=1, padx=5)
 
         tk.Label(bottom, text="Payment", bg=BG, font=("Arial", 10, "bold")).grid(row=0, column=2, padx=5)
 
@@ -841,6 +854,38 @@ class RestaurantApp:
         payment.grid(row=0, column=3, padx=5)
 
         current_total = {"value": Decimal("0.00")}
+
+        def calculate_discount(subtotal):
+            disc_input = discount.get().strip()
+
+            if "%" in disc_input:
+                percent = Decimal(disc_input.replace("%", "").strip())
+                if percent < 0:
+                    raise ValueError
+                return (subtotal * percent) / Decimal("100")
+
+            disc = Decimal(disc_input or "0")
+            if disc < 0:
+                raise ValueError
+            return disc
+
+        def update_final(*args):
+            subtotal = current_total["value"]
+
+            try:
+                disc = calculate_discount(subtotal)
+            except Exception:
+                final_var.set("Final Total: Invalid discount")
+                return None
+
+            tax = subtotal * Decimal("0.05")
+            final = subtotal + tax - disc
+
+            if final < 0:
+                final = Decimal("0.00")
+
+            final_var.set(f"Final Total: ${final:.2f}")
+            return final
 
         def load_bill():
             if not order_cb.get():
@@ -875,6 +920,8 @@ class RestaurantApp:
             detail.insert(tk.END, "\n" + "-" * 55)
             detail.insert(tk.END, f"\nSubtotal: ${subtotal:.2f}\nTax 5%:   ${tax:.2f}\n")
 
+            update_final()
+
         def confirm_payment():
             if not order_cb.get():
                 return
@@ -886,13 +933,16 @@ class RestaurantApp:
                 return
 
             try:
-                disc = Decimal(discount.get() or "0")
+                disc = calculate_discount(subtotal)
             except Exception:
-                messagebox.showerror("Invalid Discount", "Discount must be numeric")
+                messagebox.showerror("Invalid Discount", "Enter discount as amount or percentage. Example: 10 or 10%")
                 return
 
             tax = subtotal * Decimal("0.05")
             final = subtotal + tax - disc
+
+            if final < 0:
+                final = Decimal("0.00")
 
             self.db.query(
                 "INSERT INTO bills(order_id,item_total,tax,discount,final_amount,payment_method) VALUES(%s,%s,%s,%s,%s,%s)",
@@ -911,6 +961,8 @@ class RestaurantApp:
 
             messagebox.showinfo("Paid", f"Payment completed. Final amount: ${final:.2f}")
             win.destroy()
+
+        discount.bind("<KeyRelease>", update_final)
 
         self.button(top, "Load Bill", load_bill, 12).pack(side="left", padx=12)
         self.button(bottom, "Confirm Payment", confirm_payment, 18, BLUE).grid(row=0, column=4, padx=15)
