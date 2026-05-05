@@ -1,6 +1,7 @@
 CREATE DATABASE IF NOT EXISTS restaurant_management;
 USE restaurant_management;
 
+DROP TABLE IF EXISTS attendance_logs;
 DROP TABLE IF EXISTS bills;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
@@ -42,10 +43,12 @@ CREATE TABLE orders (
   order_id INT AUTO_INCREMENT PRIMARY KEY,
   customer_id INT,
   table_id INT,
+  created_by INT,
   order_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  status ENUM('Open','Billed','Cancelled') NOT NULL DEFAULT 'Open',
+  status ENUM('Open','Served','Billed','Cancelled') NOT NULL DEFAULT 'Open',
   FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON DELETE SET NULL,
-  FOREIGN KEY (table_id) REFERENCES restaurant_tables(table_id) ON DELETE SET NULL
+  FOREIGN KEY (table_id) REFERENCES restaurant_tables(table_id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
 CREATE TABLE order_items (
@@ -68,6 +71,15 @@ CREATE TABLE bills (
   payment_method ENUM('Cash','Card','UPI') NOT NULL,
   paid_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
+);
+
+CREATE TABLE attendance_logs (
+  log_id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  clock_in_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  clock_out_time DATETIME NULL,
+  status ENUM('Clocked In','Clocked Out') NOT NULL DEFAULT 'Clocked In',
+  FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 INSERT INTO users(username, password, role) VALUES
